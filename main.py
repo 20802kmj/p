@@ -10,7 +10,7 @@ import streamlit as st
 # 기본 설정
 # --------------------------------------------------
 APP_TITLE = "사망율 분석"
-DATA_URL = "https://raw.githubusercontent.com/20802kmj/data/refs/heads/main/aaa.csv"
+DATA_URL = "https://raw.githubusercontent.com/ebbeberge/stroke-prediction/main/stroke.csv"
 RECORD_DIR = Path("내_기록")
 RECORD_FILE = RECORD_DIR / "사망율_분석_기록.json"
 
