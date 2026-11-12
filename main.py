@@ -83,6 +83,145 @@ def save_records(meanings, source):
 # --------------------------------------------------
 @st.cache_data
 def load_data():
+    
+import pandas as pd
+import itertools
+
+# 1. 연관분석용 데이터 전처리
+assoc = df.copy()
+
+# BMI 결측치 처리
+assoc["bmi"] = assoc["bmi"].fillna(assoc["bmi"].median())
+
+# 연속형 데이터 구간화
+assoc["age_group"] = pd.cut(
+    assoc["age"],
+    bins=[0, 30, 50, 70, 120],
+    labels=["30세 이하", "31~50세", "51~70세", "70세 초과"]
+)
+
+assoc["glucose_group"] = pd.cut(
+    assoc["avg_glucose_level"],
+    bins=[0, 100, 140, float("inf")],
+    labels=["100 미만", "100~140", "140 초과"]
+)
+
+assoc["bmi_group"] = pd.cut(
+    assoc["bmi"],
+    bins=[0, 18.5, 25, 30, float("inf")],
+    labels=["저체중", "정상 범위", "과체중", "비만 범위"]
+)
+
+# 2. 분석에 사용할 항목 선택
+features = [
+    "age_group",
+    "hypertension",
+    "heart_disease",
+    "glucose_group",
+    "bmi_group",
+    "smoking_status",
+    "stroke"
+]
+
+# 범주형 항목을 문자열로 변환
+transactions = pd.DataFrame(index=assoc.index)
+
+for col in features:
+    transactions[col] = assoc[col].astype(str).map(
+        lambda x: f"{col}={x}"
+    )
+
+# 3. Apriori 알고리즘 구현
+min_support = 0.01
+frequent_itemsets = {}
+
+items = [
+    set(row)
+    for row in transactions.values.tolist()
+]
+
+for size in range(1, 4):
+    candidates = set()
+
+    if size == 1:
+        candidates = {
+            frozenset([item])
+            for row in items
+            for item in row
+        }
+    else:
+        previous = [
+            itemset for itemset, support
+            in frequent_itemsets.items()
+            if len(itemset) == size - 1
+        ]
+
+        for a, b in itertools.combinations(previous, 2):
+            union = a | b
+            if len(union) == size:
+                candidates.add(union)
+
+    for candidate in candidates:
+        count = sum(
+            candidate.issubset(row)
+            for row in items
+        )
+
+        support = count / len(items)
+
+        if support >= min_support:
+            frequent_itemsets[candidate] = support
+
+# 4. 연관규칙 생성
+rules = []
+
+for itemset, support in frequent_itemsets.items():
+    if len(itemset) < 2:
+        continue
+
+    for size in range(1, len(itemset)):
+        for antecedent in itertools.combinations(itemset, size):
+            antecedent = frozenset(antecedent)
+            consequent = itemset - antecedent
+
+            antecedent_support = frequent_itemsets.get(
+                antecedent, 0
+            )
+            consequent_support = frequent_itemsets.get(
+                consequent, 0
+            )
+
+            if antecedent_support == 0 or consequent_support == 0:
+                continue
+
+            confidence = support / antecedent_support
+            lift = confidence / consequent_support
+
+            if (
+                "stroke=1" in consequent
+                and confidence >= 0.05
+            ):
+                rules.append({
+                    "조건": ", ".join(sorted(antecedent)),
+                    "결과": ", ".join(sorted(consequent)),
+                    "지지도": support,
+                    "신뢰도": confidence,
+                    "향상도": lift
+                })
+
+# 5. 결과 출력
+rules_df = pd.DataFrame(rules)
+
+if not rules_df.empty:
+    rules_df = rules_df.sort_values(
+        "향상도", ascending=False
+    )
+
+    st.subheader("뇌졸중 관련 연관규칙 분석")
+    st.dataframe(rules_df, use_container_width=True)
+else:
+    st.info("조건에 맞는 연관규칙이 없습니다.")
+
     data = pd.read_csv(DATA_URL, encoding="utf-8")
 
     missing_columns = [
