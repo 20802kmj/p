@@ -12,7 +12,11 @@ import streamlit as st
 # 기본 설정
 # --------------------------------------------------
 APP_TITLE = "사망율 분석"
-DATA_URL = "https://raw.githubusercontent.com/ebbeberge/stroke-prediction/main/stroke.csv"
+
+DATA_URL = (
+    "https://raw.githubusercontent.com/"
+    "ebbeberge/stroke-prediction/main/stroke.csv"
+)
 
 RECORD_DIR = Path("내_기록")
 RECORD_FILE = RECORD_DIR / "사망율_분석_기록.json"
@@ -45,8 +49,13 @@ def load_records():
         if not isinstance(saved, dict):
             return {"meanings": {}, "source": ""}
 
+        meanings = saved.get("meanings", {})
+
+        if not isinstance(meanings, dict):
+            meanings = {}
+
         return {
-            "meanings": saved.get("meanings", {}),
+            "meanings": meanings,
             "source": saved.get("source", "")
         }
 
@@ -97,6 +106,7 @@ def make_transactions(data):
     assoc["bmi"] = pd.to_numeric(
         assoc["bmi"], errors="coerce"
     )
+
     assoc["bmi"] = assoc["bmi"].fillna(
         assoc["bmi"].median()
     )
@@ -266,6 +276,7 @@ def run_apriori(
             continue
 
         antecedent = itemset - target
+
         antecedent_support = frequent.get(
             antecedent, 0
         )
@@ -278,8 +289,12 @@ def run_apriori(
 
         rules.append({
             "조건": ", ".join(sorted(antecedent)),
-            "결과": "stroke=발생",
-            "발생 건수": round(support * total),
+            "조건 해당 인원": round(
+                antecedent_support * total
+            ),
+            "뇌졸중 발생 인원": round(
+                support * total
+            ),
             "지지도(%)": support * 100,
             "신뢰도(%)": confidence * 100,
             "향상도": lift
@@ -324,7 +339,7 @@ except Exception as error:
 
 
 # --------------------------------------------------
-# 데이터 요약 카드
+# 데이터 요약
 # --------------------------------------------------
 saved_records = load_records()
 
@@ -348,7 +363,7 @@ c4.metric("발생 비율", f"{stroke_ratio:.2f}%")
 
 
 # --------------------------------------------------
-# 열 정보 표
+# 열 정보
 # --------------------------------------------------
 st.divider()
 st.markdown("### 열 정보")
@@ -420,10 +435,6 @@ except OSError as error:
 
 
 # --------------------------------------------------
-# 연관분석 모델링
-# --------------------------------------------------
-
-# --------------------------------------------------
 # 독립 변수 및 종속 변수 선정
 # --------------------------------------------------
 st.divider()
@@ -455,7 +466,8 @@ for col, meaning in independent_vars.items():
         "값의 종류": int(df[col].nunique()),
         "빈 값 개수": int(df[col].isna().sum()),
         "자료 형태": (
-            "수치형" if pd.api.types.is_numeric_dtype(df[col])
+            "수치형"
+            if pd.api.types.is_numeric_dtype(df[col])
             else "범주형"
         )
     })
@@ -474,14 +486,9 @@ st.markdown("""
 뇌졸중 발생 패턴을 분석하기에 적합하기 때문이다.
 """)
 
-# --------------------------------------------------
-# 종속 변수 선정
-# --------------------------------------------------
 st.markdown("### 2. 종속 변수")
 
-target = "stroke"
-
-stroke_counts = df[target].value_counts().sort_index()
+stroke_counts = df["stroke"].value_counts().sort_index()
 
 st.metric(
     "종속 변수",
@@ -514,6 +521,10 @@ st.caption(
     "※ ID는 개인 식별 번호이므로 분석 변수에서 제외하였다."
 )
 
+
+# --------------------------------------------------
+# 연관분석 모델링
+# --------------------------------------------------
 st.divider()
 st.header("🔎 연관분석 모델링")
 
@@ -545,6 +556,10 @@ rules_df = run_apriori(
     max_itemset_size=3
 )
 
+
+# --------------------------------------------------
+# 연관분석 결과
+# --------------------------------------------------
 if not rules_df.empty:
 
     displayed_rules = rules_df[
@@ -558,13 +573,19 @@ if not rules_df.empty:
             f"총 {len(displayed_rules)}개의 연관규칙을 발견했습니다."
         )
 
+        st.markdown("### 연관분석 결과표")
+
         st.dataframe(
             displayed_rules.round(2),
             hide_index=True,
             use_container_width=True
         )
 
-        # Plotly 시각화
+        # --------------------------------------------------
+        # 시각화
+        # --------------------------------------------------
+        st.markdown("### 연관규칙 TOP 10")
+
         chart_data = displayed_rules.head(10).copy()
 
         chart_data["규칙"] = (
@@ -580,7 +601,8 @@ if not rules_df.empty:
             hover_data=[
                 "지지도(%)",
                 "신뢰도(%)",
-                "발생 건수"
+                "조건 해당 인원",
+                "뇌졸중 발생 인원"
             ]
         )
 
@@ -595,6 +617,58 @@ if not rules_df.empty:
             use_container_width=True
         )
 
+        # --------------------------------------------------
+        # 최종 분석 결과
+        # --------------------------------------------------
+        st.divider()
+        st.header("🏆 최종 분석 결과")
+
+        best_rule = displayed_rules.iloc[0]
+
+        c1, c2, c3 = st.columns(3)
+
+        c1.metric(
+            "조건 해당 인원",
+            f"{int(best_rule['조건 해당 인원']):,}명"
+        )
+
+        c2.metric(
+            "뇌졸중 발생 인원",
+            f"{int(best_rule['뇌졸중 발생 인원']):,}명"
+        )
+
+        c3.metric(
+            "뇌졸중 발생 비율",
+            f"{best_rule['신뢰도(%)']:.2f}%"
+        )
+
+        st.markdown("### 가장 높은 연관성을 보인 조건")
+
+        st.info(
+            f"**{best_rule['조건']}** 조건에서 "
+            f"가장 높은 향상도를 보였습니다."
+        )
+
+        st.markdown("### 최종 결론")
+
+        st.write(
+            f"분석 결과, {best_rule['조건']} 조건에 해당하는 "
+            f"{int(best_rule['조건 해당 인원']):,}명 중 "
+            f"{int(best_rule['뇌졸중 발생 인원']):,}명에게서 "
+            f"뇌졸중이 발생했으며, 발생 비율은 "
+            f"{best_rule['신뢰도(%)']:.2f}%로 나타났습니다. "
+            f"이를 통해 해당 건강 특성과 뇌졸중 발생 사이에 "
+            f"연관성이 있음을 확인했습니다."
+        )
+
+        st.caption(
+            "※ 가장 높은 향상도를 기준으로 정리한 결과입니다. "
+            "연관성이 원인이나 실제 발병 가능성을 증명하지는 않습니다."
+        )
+
+        # --------------------------------------------------
+        # CSV 다운로드
+        # --------------------------------------------------
         st.download_button(
             "연관분석 결과 CSV 다운로드",
             data=displayed_rules.to_csv(
