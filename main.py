@@ -422,6 +422,98 @@ except OSError as error:
 # --------------------------------------------------
 # 연관분석 모델링
 # --------------------------------------------------
+
+# --------------------------------------------------
+# 독립 변수 및 종속 변수 선정
+# --------------------------------------------------
+st.divider()
+st.header("📊 독립 변수 및 종속 변수 선정")
+
+st.markdown("### 1. 독립 변수")
+
+independent_vars = {
+    "age": "나이",
+    "gender": "성별",
+    "hypertension": "고혈압 여부",
+    "heart_disease": "심장질환 여부",
+    "avg_glucose_level": "평균 혈당 수치",
+    "bmi": "체질량지수(BMI)",
+    "smoking_status": "흡연 상태"
+}
+
+st.write(
+    "다음 7개 속성을 독립 변수로 선정하였다. "
+    "이 속성들은 개인의 건강 상태와 생활 습관을 나타낸다."
+)
+
+variable_info = []
+
+for col, meaning in independent_vars.items():
+    variable_info.append({
+        "속성": col,
+        "우리말 뜻": meaning,
+        "값의 종류": int(df[col].nunique()),
+        "빈 값 개수": int(df[col].isna().sum()),
+        "자료 형태": (
+            "수치형" if pd.api.types.is_numeric_dtype(df[col])
+            else "범주형"
+        )
+    })
+
+st.dataframe(
+    pd.DataFrame(variable_info),
+    hide_index=True,
+    use_container_width=True
+)
+
+st.markdown("""
+**선정 이유**
+
+나이, 평균 혈당 수치, BMI는 수치에 따른 차이를 비교할 수 있고,
+성별, 고혈압, 심장질환, 흡연 상태는 건강 특성에 따른
+뇌졸중 발생 패턴을 분석하기에 적합하기 때문이다.
+""")
+
+# --------------------------------------------------
+# 종속 변수 선정
+# --------------------------------------------------
+st.markdown("### 2. 종속 변수")
+
+target = "stroke"
+
+stroke_counts = df[target].value_counts().sort_index()
+
+st.metric(
+    "종속 변수",
+    "뇌졸중 발생 여부 (stroke)"
+)
+
+target_info = pd.DataFrame({
+    "값": ["0", "1"],
+    "의미": ["뇌졸중 미발생", "뇌졸중 발생"],
+    "인원": [
+        int(stroke_counts.get(0, 0)),
+        int(stroke_counts.get(1, 0))
+    ]
+})
+
+st.dataframe(
+    target_info,
+    hide_index=True,
+    use_container_width=True
+)
+
+st.markdown("""
+**선정 이유**
+
+분석의 목적이 개인의 건강 정보와 뇌졸중 발생 여부 사이의
+연관성을 알아보는 것이므로 stroke를 종속 변수로 선정하였다.
+""")
+
+st.caption(
+    "※ ID는 개인 식별 번호이므로 분석 변수에서 제외하였다."
+)
+
 st.divider()
 st.header("🔎 연관분석 모델링")
 
